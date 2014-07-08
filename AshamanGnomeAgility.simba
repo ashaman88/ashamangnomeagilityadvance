@@ -1,0 +1,995 @@
+Program AshamanGnomeAgility;
+  {$IFDEF RAYMONDPOWNS}{wrappers} function FloodFillTPAWrap(const TPA: TPointArray): T2DPointArray; var tempATPA: T2DPointArray; begin tempATPA:= FloodFillTPA(TPA); Result:= tempATPA; SetLength(tempATPA, 0); end; function FindTPAEdges(const p: TPointArray): TPointArray; begin FindTPAEdgesWrap(p, result); end; Function RotatePoints(Const P: TPointArray; A, cx, cy: Extended): TPointArray; begin RotatePointsWrap(P, A, cx, cy, result); end; function TPAFromCircle(const CX, CY, Radius: Integer): TPointArray; begin TPAFromCircleWrap(CX, CY, Radius, result); end; function TPAFromEllipse(const CX, CY, XRadius, YRadius : Integer): TPointArray; begin TPAFromEllipseWrap(CX, CY, XRadius, YRadius, result); end; function TPAFromBox(const Box : TBox) : TPointArray; begin TPAFromBoxWrap(Box, result); end; Function ReturnPointsNotInTPA(Const TotalTPA: TPointArray; const Box: TBox): TPointArray; begin ReturnPointsNotInTPAWrap(TotalTPA, Box, result); end; function CombineIntArray(const Ar1, Ar2: TIntegerArray): TIntegerArray; begin CombineIntArrayWrap(Ar1, Ar2, result); end; function ReArrangeandShortenArray(const a: TPointArray; Dist: Integer): TPointArray; begin ReArrangeandShortenArrayWrap(a, Dist, result); end; function ReArrangeandShortenArrayEx(const a: TPointArray; w, h: Integer): TPointArray; begin ReArrangeandShortenArrayExWrap(a, w, h, result); end; function CombineTPA(const Ar1, Ar2: TPointArray): TPointArray; begin CombineTPAWrap(Ar1, Ar2, Result); end; function RemoveDistTPointArray(x, y, dist: Integer;const ThePoints: TPointArray; RemoveHigher: Boolean): TPointArray; begin RemoveDistTPointArrayWrap(x, y, dist, ThePoints, RemoveHigher, Result); end; function TPAFromText(const text, font: String; var w,h: Integer): TPointArray; begin TPAFromTextWrap(text, font, w, h, result); end; function GetColors(const Coords: TPointArray): TIntegerArray; begin GetColorsWrap(Coords, Result); end; function Explode(del, str: string): TStringArray; begin ExplodeWrap(del, str, Result); end; function MergeATPA(const ATPA : T2DPointArray): TPointArray; begin MergeATPAWrap(ATPA, Result); end; function SplitTPA(arr : TPointArray; dist : Integer) : T2DPointArray; begin SplitTPAWrap(arr, dist, result); end; function SplitTPAEx(arr : TPointArray; w, h : integer) : T2DPointArray; begin SplitTPAExWrap(Arr, w, h, result); end; function ClearTPAFromTPA(arP, ClearPoints : TPointArray) : TPointArray; begin ClearTPAFromTPAWrap(arP, ClearPoints, result); end; function TPAToATPAEx(arP : TPointArray; w, h : integer) : T2DPointArray; begin TPAtoATPAExWrap(arP, w, h, result); end; function TPAToATPA(arP : TPointArray; dist : Integer) : T2DPointArray; begin TPAtoATPAWrap(arP, dist, result); end; function FindGapsTPA(TPA : TPointArray; MinPixels : integer) : T2DPointArray; begin FindGapsTPAWrap(tpa, MinPixels, result); end; {$ENDIF}
+  {$Define SMART}
+  {$I SRL-6/SRL.Simba}
+  {$i srl-6/lib/misc/srlplayerform.simba}
+  {$I SPS/lib/SPS-RS3.Simba}
+
+const
+  DEBUG_XP = false;
+  DEBUG_POS = false;
+  UPSTAIRS_SPS = true;
+  SCRIPT_VERSION = '1.0';
+
+
+
+type
+  TObstacle = record
+    obstacleName: string;
+    obstacleNumber: integer;
+    obstacleCoords: TBox;
+    startAngle: integer;
+    customSearchBounds: boolean;
+    boundSort: TPoint;
+    boundCluster: Integer;
+    searchBounds: TColorData;
+    obstacleColor: TColorData;
+    cluster: boolean;
+    tpaWidth: Integer;
+    tpaHeight: Integer;
+    filterHigh: integer;
+    filterLow: integer;
+    sortBySize: boolean;
+    sortFrom: TPoint;
+    objectPart: string;
+    mouseOverText: TStringArray;
+    minWait: integer;
+    nextAction: TBox;
+    nextCamera: Integer;
+  end;
+
+  TObstacleArray = array of TObstacle;
+
+Const
+  CROSS_LOG = 0;
+  CLIMB_NET = 1;
+  CLIMB_BRANCH_1 = 2;
+  CLIMB_BRANCH_2 = 3;
+  RUN_SIGN = 4;
+  SWING_POLE = 5;
+  DOWN_PIPE = 6;
+  TO_START = 7;
+
+var
+  map_upstairs, map_ground: TSPSArea;
+  acrossSwingDTM,lapCount,XP,StartingXP,lapsPH,XPH,Bir,Bfr: integer;
+  Timeout,CurrentBTime, lostTimeout: TTimeMarker;
+  W,X,Y,Z,RealBTime,BreakRounds,TotalBreaks: Integer;
+  obstacleArray: TObstacleArray;
+  debug: boolean;
+
+function TRSChatBox.getXP: Integer;
+var
+  b: TBox;
+  s: String;
+  tpa : TPointArray;
+  atpa : T2DPointArray;
+  i,cts,p: Integer;
+begin
+  b := self.getBounds();
+  b.edit(+(b.x2-b.x1)-140, +10, -5, -94);
+
+  findColorsTolerance(tpa, 14013909, b, 4,colorSetting(2, 0.00, 0.00));
+
+  if length(tpa) < 2 then
+  begin
+    print('chatBox.getXP(): No XP found', TDebug.SUB);
+    Exit;
+  end;
+
+  atpa := tpa.cluster(5);
+
+  b:= atpa.getbounds;
+  b.edit(-2,-2,+2,+3);
+
+  s:=Replace(tesseractgettext(b.x1,b.y1,b.x2,b.y2, FILTER_SMALL_CHARS), ' ', '', [rfReplaceAll]);
+
+  P := Pos('x', S);
+  if P > 0 then
+    Result := StrToIntDef(ExtractFromStr(Copy(s, P, Length(S)), Numbers), 0)
+  else
+    Result := StrToIntDef(ExtractFromStr(S, Numbers), 0);
+
+  if DEBUG_XP then
+    print('chatBox.getXP(): XP found: ' + tostr(result), TDebug.SUB);
+end;
+
+function waitXPChange(startingXP: integer; waitTime: Integer = 2000): boolean;
+var
+  t: TTimeMarker;
+begin
+  t.start;
+  repeat
+    wait(50 + random(100));
+
+    if startingXP <> chatBox.getXP then
+    begin
+      print('XP has changed');
+      exit(true);
+    end;
+  until t.getTime > waitTime;
+end;
+
+{*******************************************************************************
+Function AutoupdateMe;
+By: Shuttleu
+Edited By: Ashaman88
+Description: Autoupdates Script.
+*******************************************************************************}
+Procedure AutoUpdateMe;
+Var
+  Neifile: Integer;
+  OnlineVersion, NewScript, NeiFeilNennen: String;
+Begin
+  Writeln('Checking for script updates...');
+  OnlineVersion := GetPage('http://ashamangnomeagilityadvance.googlecode.com/git/Version.txt');
+  Writeln('Online Version: '+ToStr(OnlineVersion));
+  Writeln('Local Version: '+ToStr(Script_Version));
+  If (trim(OnlineVersion) > Script_Version) Then
+  Begin
+    WriteLn('Newer script version online!');
+    WriteLn('Autoupdating to newer version.');
+    NewScript := GetPage('http://ashamangnomeagilityadvance.googlecode.com/git/AshamanGnomeAgility.simba');
+    NeiFeilNennen := ScriptPath+ 'AshamanGnomeAgility V'+OnlineVersion+'.simba';
+    Neifile := Rewritefile(NeiFeilNennen, true);
+    Try
+      WriteFileString(Neifile, NewScript);
+    Except
+      Begin
+        WriteLn('Fatal error writing to '+NeiFeilNennen+'!!');
+        Terminatescript;
+      End;
+    End;
+    CloseFile(Neifile);
+    WriteLn('New script downloaded to '+NeiFeilNennen+'!! Please use this one!!');
+    TerminateScript;
+  End Else
+    WriteLn('You have the latest version of the script!');
+End;
+
+procedure declarePlayers();
+var
+  i,j: integer;
+begin
+  players.setup(playerForm.playerNames, playerForm.playerFile); // load the SPF players from the SRL Player Manager
+  currentPlayer := 0;                                           // player to use first
+
+  // set player attributes based on the settings from the form
+  for i := 0 to high(players) do
+    with players[i] do
+    begin
+      // convert the integers
+      integers[0] := strToInt(playerForm.players[i].settings[0]);  //minutes until break
+      integers[1] := strToInt(playerForm.players[i].settings[1]);  //minutes to break
+
+      World :=  strToInt(playerForm.players[i].settings[2]);                    //world
+      ismember:=true;
+
+      // booleans
+      booleans[0] := strToBool(playerForm.players[i].settings[3]); //take breaks
+      booleans[1] := strToBool(playerForm.players[i].settings[4]); //switch worlds
+      FindMod := strToBool(playerForm.players[i].settings[5]);     //findmod
+      debug := strToBool(playerForm.players[i].settings[6]);     //debug
+    end;
+end;
+
+// initiates the SRL player form (you aren't restricted to the procedure name; it can be whatever you want)
+procedure initPlayerForm();
+begin
+  with playerForm do
+  begin
+    name := 'AshamanGnomeAgility v'+toStr(Script_Version); // the title of the SPF, usually the name of your script
+    scriptHelpThread := '';           // a link to a help thread, if set to '' will link to my setup guide
+    scriptSettingsPath := '';         // where you want the settings file to be saved; saved in script's path by default
+
+    editBoxLabels := ['Minutes until Break', '# of Minutes to Break', 'World']; // edit boxes are created for each array element
+    editBoxDefaults := ['600', '15','0'];                                             // optional default values for each edit box; array length must equal editBoxLabel length
+    checkBoxLabels := ['Take Breaks', 'Switch Worlds (After Break)', 'Logout if Mod is near', 'Debug'];        // same as editBoxLabels but for check boxes
+    checkBoxDefaults := ['True','True','True', 'false'];
+
+    comboBoxLabels := ['Efficiency'];                                                // same as editBoxLabels but for combo boxes (drop down boxes)
+    comboBoxDefaults := ['Maximum'];
+
+    // this needs to be done for every element in the comboBoxLabels array
+    setLength(comboBoxItems, length(comboBoxLabels));
+    comboBoxItems[0] := ['Maximum', 'Moderate'];       // all the options available for the first combo box
+  end;
+end;
+
+procedure findNormalRandoms;
+begin
+  exitTreasure;
+  claimTicket;
+end;
+
+Function GrabMaps: Boolean;
+var
+  map1, map2: String;    //Map Locations
+  name1, name2: String;      //Map Names
+  spsFile1, spsFile2: LongInt;
+begin
+  name1 := includePath + 'SPS\img\runescape_surface\0_0GA.png';
+  name2 := includePath + 'SPS\img\runescape_surface\0_0GA2.png';
+  map1 := 'https://imagizer.imageshack.us/v2/279x303q90/841/4s14.png';
+  map2 := 'https://imagizer.imageshack.us/v2/574x452q90/834/y23u.png';
+  if (not fileExists(name1)) then
+  begin
+    writeln('No file, downloading');
+    spsFile1 := createFile(name1);
+    closeFile(spsFile1);
+    spsFile1 := rewriteFile(name1, false);
+    writeFileString(spsFile1, getPage(map1));
+    closeFile(spsFile1);
+  end;
+
+  if (not fileExists(name2)) then
+  begin
+    writeln('No file, downloading');
+    spsFile2 := createFile(name2);
+    closeFile(spsFile2);
+    spsFile2 := rewriteFile(name2, false);
+    writeFileString(spsFile1, getPage(map2));
+    closeFile(spsFile2);
+  end;
+
+  result:= (fileExists(includePath + 'SPS\img\runescape_surface\0_0GA.png')) and (fileExists(includePath + 'SPS\img\runescape_surface\0_0GA2.png'));
+end;
+
+Procedure RequirementsCheck;
+begin
+  If (Not GrabMaps) then
+    RaiseException(erCustomError, 'SPS Maps Do Not Exist OR They Are Named Incorrectly!');
+end;
+
+procedure ProgressReport;
+Var
+  TTB: Integer;
+Begin
+  ClearDebug;
+
+  TTB := (((W) + (Y) + BreakRounds)-GetTimeRunning);
+
+  XP := (ChatBox.GetXP - StartingXP);
+  XPH := Round(XP * (3600.0 / (GetTimeRunning / 1000.0)));
+  lapsPH := Round((lapCount * (3600.0 / (GetTimeRunning / 1000.0))));
+
+  writeln('|=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=|');
+  writeln('|                  AshamanGnomeAgility v'+PadR(toStr(SCRIPT_VERSION), 20), '|');
+  writeln('|=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=|');
+  writeln(PadR('| Running For: '+TimeRunning, 60)+'|');
+  writeln(PadR('| Laps: ' + GroupDigits(lapCount,','), 40) + padR('Laps/H: ' + GroupDigits(lapsPH,','), 20) + '|');
+  writeln(PadR('| Exp Earned: ' + GroupDigits(XP,','), 40) + padR('Exp/Hour: ' + GroupDigits(XPH,','), 20) + '|');
+  writeln('|___________________________________________________________|');
+  writeln('|___________________________________________________________|');
+
+ // If Players[CurrentPlayer].Booleans[0] Then
+ //   Writeln('Time until break: '+MsToTime(TTB, Time_Bare));
+End;
+
+procedure setupObstacles;
+begin
+  setLength(obstacleArray, 8);
+
+  with obstacleArray[CROSS_LOG] do
+  begin
+    obstacleName := 'Cross Log';
+    obstacleNumber :=  0;
+    obstacleCoords :=  [110, 110, 142, 125];
+    startAngle := MM_DIRECTION_NORTH;
+    customSearchBounds := true;
+    boundSort := [0, 0];
+    boundCluster := 30;
+    searchBounds := [3751499, 8, [2, [0.26, 0.17, 0.00]]];
+    obstacleColor := [4812686, 7, [2, [0.05, 0.12, 0.00]]];
+    cluster := false;
+    tpaWidth := 5;
+    tpaHeight := 20;
+    filterHigh := 0;
+    filterLow := 1;
+    sortBySize := false;
+    sortFrom := [293, 219];
+    objectPart := 'Top';
+    mouseOverText := ['balance', 'alan', 'cross', 'Log'];
+    nextAction := [250, 304, 287, 317];
+    nextCamera := MM_DIRECTION_NORTH;
+  end;
+
+  with obstacleArray[CLIMB_NET] do
+  begin
+    obstacleName := 'Climb Net';
+    obstacleNumber :=  1;
+    obstacleCoords :=  [114, 145, 150, 170];
+    startAngle := MM_DIRECTION_NORTH;
+    customSearchBounds := false;
+    obstacleColor := [6389915, 4, [2, [0.08, 0.42, 0.00]]];
+    cluster := true;
+    tpaWidth := 5;
+    tpaHeight := 20;
+    filterHigh := 0;
+    filterLow := 10;
+    sortBySize := false;
+    sortFrom := [273, 311];
+    objectPart := '';
+    mouseOverText := ['net', 'Climb', 'stacle', 'Obs'];
+    nextAction := [281, 159, 284, 165];
+    nextCamera := MM_DIRECTION_SOUTH;
+  end;
+
+  with obstacleArray[CLIMB_BRANCH_1] do
+  begin
+    obstacleName := 'Climb Branch 1';
+    obstacleNumber :=  2;
+    obstacleCoords :=  [145, 140, 175, 160];
+    startAngle := MM_DIRECTION_SOUTH;
+    customSearchBounds := true;
+    boundSort := mainscreen.playerPoint;
+    boundCluster := 15;
+    searchBounds := [1584956, 5, [2, [0.35, 0.58, 0.00]]];
+    obstacleColor := [3428196, 7, [2, [0.07, 0.18, 0.00]]];
+    cluster := false;
+    tpaWidth := 10;
+    tpaHeight := 20;
+    filterHigh := 0;
+    filterLow := 10;
+    sortBySize := false;
+    sortFrom := [284, 141];
+    objectPart := '';
+    mouseOverText := ['Tree', 'Climb', 'anch', 'bran'];
+    nextAction := [321, 157, 324, 171];
+    nextCamera := MM_DIRECTION_SOUTH;
+  end;
+
+  with obstacleArray[CLIMB_BRANCH_2] do
+  begin
+    obstacleName := 'Climb Branch 2';
+    obstacleNumber :=  3;
+    obstacleCoords :=  [365, 110, 440, 135];
+    startAngle := MM_DIRECTION_SOUTH;
+    customSearchBounds := true;
+    boundSort := mainscreen.playerPoint;
+    boundCluster := 10;
+    searchBounds := [1584956, 5, [2, [0.35, 0.58, 0.00]]];
+    obstacleColor := [3428196, 7, [2, [0.07, 0.18, 0.00]]];
+    cluster := false;
+    tpaWidth := 10;
+    tpaHeight := 20;
+    filterHigh := 0;
+    filterLow := 10;
+    sortBySize := false;
+    sortFrom := [322, 167];
+    objectPart := 'BottomRight';
+    mouseOverText := ['Tree', 'Climb', 'anch', 'bran'];
+    nextAction := [114, 118, 118, 135];
+    nextCamera := MM_DIRECTION_SOUTH;
+  end;
+
+  with obstacleArray[RUN_SIGN] do
+  begin
+    obstacleName := 'Run Signpost';
+    obstacleNumber :=  4;
+    obstacleCoords :=  [410, 345, 442, 368];
+    startAngle := MM_DIRECTION_SOUTH;
+    customSearchBounds := false;
+    obstacleColor := [3708616, 14, [2, [0.02, 1.11, 0.00]]];
+    cluster := true;
+    tpaWidth := 5;
+    tpaHeight := 20;
+    filterHigh := 0;
+    filterLow := 10;
+    sortBySize := false;
+    sortFrom := [118, 118];
+    objectPart := 'MidRight';
+    mouseOverText := ['Run', 'cross', 'post', 'ign'];
+    nextAction := [309, 17, 342, 19];
+    nextCamera := MM_DIRECTION_NORTH;
+  end;
+
+  with obstacleArray[SWING_POLE] do
+  begin
+    obstacleName := 'Swing Pole';
+    obstacleNumber :=  5;
+    obstacleCoords :=  [457, 340, 485, 370];
+    startAngle := MM_DIRECTION_NORTH;
+    customSearchBounds := false;
+    obstacleColor := [5137263, 10, [2, [0.10, 0.53, 0.00]]];
+    cluster := true;
+    tpaWidth := 5;
+    tpaHeight := 20;
+    filterHigh := 0;
+    filterLow := 10;
+    sortBySize := false;
+    sortFrom := [330, 19];
+    objectPart := '';
+    mouseOverText := ['Swing', 'Pole', 'ole', 'wing'];
+    minWait := 5000;
+    nextAction := [306, 233, 326, 241];
+    nextCamera := MM_DIRECTION_SOUTH;
+  end;
+
+  with obstacleArray[DOWN_PIPE] do
+  begin
+    obstacleName := 'Down Pipe';
+    obstacleNumber :=  6;
+    obstacleCoords :=  [450, 289, 500, 310];
+    startAngle := MM_DIRECTION_SOUTH;
+    customSearchBounds := true;
+    boundSort := mainscreen.playerPoint;
+    boundCluster := 10;
+    searchBounds := [1584956, 5, [2, [0.35, 0.58, 0.00]]];
+    obstacleColor := [7379386, 7, [2, [0.06, 1.05, 0.00]]];
+    cluster := true;
+    tpaWidth := 5;
+    tpaHeight := 2;
+    filterHigh := 0;
+    filterLow := 20;
+    sortBySize := false;
+    sortFrom := [352, 235];
+    objectPart := '';
+    mouseOverText := ['Jump', 'over', 'arr', 'rier'];
+    nextAction := [635, 95, 659, 113];
+    nextCamera := MM_DIRECTION_NORTH;
+  end;
+
+  with obstacleArray[TO_START] do
+  begin
+    obstacleName := 'To Start';
+    obstacleNumber :=  7;
+    obstacleCoords :=  [143, 110, 190, 135];
+  end;
+
+
+end;
+
+procedure quickCross;
+begin
+  mouseBox([274, 213, 315, 229]);
+end;
+
+function walkToStart: boolean;
+begin
+  if not isLoggedIn then
+    exit;
+
+  case random(10) Of
+    0..1: SRL_Events[EVENT_ANTIBAN] := nil;
+    Else
+      SRL_Events[EVENT_ANTIBAN] := @QuickCross;
+  End;
+
+  Result:= map_ground.walkToPOS(Point(132, 123));
+End;
+
+Function whereAmI: Integer;
+Var
+  I, wMM, bMM, bMS: Integer;
+  Location: TPoint;
+Begin
+  SmartImage.Clear;
+
+  Result := -1;
+  Location := map_ground.GetPlayerPos;
+
+  if DEBUG_POS then
+    map_ground.debugPlayerPos;
+
+  Print('SPS Point: '+ToStr(Location));
+
+  For I := 0 To High(obstacleArray) Do
+    If PointInBox(Location, obstacleArray[I].obstacleCoords) Then
+    Begin
+      Result := I;
+      Break;
+    End;
+
+  if (CountColorTolerance(459779,Minimap.GetBounds,10)>10000) then
+  begin
+    print('didn''t find you on ground, searching above');
+    if UPSTAIRS_SPS then
+    begin
+      Location := map_upstairs.GetPlayerPos;
+      if DEBUG_POS then
+        map_upstairs.debugPlayerPos;
+    end else
+    begin
+      wMM := countColorTolerance(12303042, minimap.getBounds, 97);
+      bMM := countColorTolerance(995392, minimap.getBounds, 38);
+      bMS := countColorTolerance(7229501, intToBox(mainscreen.x1, mainscreen.y1, mainscreen.x2 - 35, mainscreen.y2), 33);
+
+      if (wMM > 850) and (bMM > 2000) then
+        location := [571, 471] else  //climb1
+        if (wMM < 650) and (bMM < 950) then
+          location := [161, 511] else //climb2
+          if (wMM > 600) and (bMM > 950) and (bMS > 8000) then
+            location := [626, 166] else      //swing pole
+            if (wMM > 600) and (bMM > 950) and (bMS > 4000) then
+              location := [616, 112] else  //downpipe
+              location := [581, 171]; //signpost
+      print('white mm colors: ' + toStr(wMM));    //1st MM:   900    520      600     600         600
+      print('brown mm colors: ' + toStr(bMM));      //1st MM: 2000   730      950     950         950
+      print('blue tree colors: ' + toStr(bMS)); //                                    8000       6000
+    end;
+  end;
+
+  Print('SPS Point: '+ToStr(Location));
+
+  For I := 2 To High(obstacleArray) Do
+    If PointInBox(Location, obstacleArray[I].obstacleCoords) Then
+    Begin
+      Result := I;
+      Break;
+    End;
+
+
+
+  If (Result=-1) Then
+  begin
+    Print('WARNING DONT KNOW WHERE YOU ARE!');
+    if lostTimeout.getTime > 110000 then
+    begin
+      writeln('Something is wrong, probably with positioning system, resetting maps');
+      players[currentPlayer].exitToLobby;
+      wait(randomRange(5000, 8000));
+      if not players[currentPlayer].login then
+        terminateScript;
+      mainScreen.setAngle(MS_ANGLE_HIGH);
+      walkToStart;
+      lostTimeout.start;
+    end;
+    exit;
+  end else
+    lostTimeout.start;
+
+  Print('We are at position: '+obstacleArray[I].obstacleName);
+
+End;
+
+procedure failsafe;
+begin
+  Mouse(Point(289+GaussRangeInt(-10,10),203+GaussRangeInt(-10,10)),Mouse_Left,Mouse_Human);
+  Wait(GaussRangeInt(1000,3000));
+end;
+
+function setbounds(settings: TColorData; sortFrom: TPoint; cluster: integer): TBox;
+var
+  tpa: TPointArray;
+  atpa: T2DPointArray;
+begin
+  if not isLoggedIn then
+    exit;
+
+  print('Using custom bounds');
+
+  settings.gatherIn(tpa, mainscreen.getBounds);
+
+  atpa := tpa.cluster(cluster);
+  atpa.filterBetween(0, 10);
+
+  if sortFrom.x = 0 then
+  begin
+    print('using sortbysize for setbounds');
+    atpa.sortBySize
+  end else
+  begin
+    print('using sortbypoint for setbounds: ' + toStr(sortFrom));
+    atpa.sortFromMidPoint(sortFrom);
+  end;
+
+  result := atpa[0].getBounds;
+  result.setLimit(mainscreen.getBounds);
+
+  print('Custom bounds: ' + toStr(result));
+  if debug then
+    smartimage.drawBox(result);
+end;
+
+function findObstacle(whichObject: Integer): boolean;
+var
+  i, x, y, startXP: Integer;
+  p: TPoint;
+  t: TTimeMarker;
+  b: TBox;
+  tpa: TPointArray;
+  atpa: T2DPointArray;
+begin
+  if not isLoggedIn then
+    exit;
+
+  if whichObject = -1 then
+    exit;
+
+  if whichObject = 7 then
+  begin
+    result:= walkToStart;
+    inc(lapCount);
+    progressReport;
+    exit;
+  end;
+
+  with obstacleArray[whichObject] do
+  begin
+    print('Trying to find object: ' + obstacleName);
+
+    minimap.setAngle(startAngle);
+
+    if isMouseOverText(mouseOverText, randomRange(1, 10)) then
+    begin
+      print('found object text, clicking');
+      if didClick(true) then
+      begin
+        print('clicked successfully, waiting for xp change');
+        startXP := chatBox.getXP;
+        wait(gaussRangeInt(minWait, minWait + randomRange(100, 1000)));
+
+        t.start;
+
+        case gaussrangeInt(0, 10) of
+          3..6:
+          begin
+            minimap.setAngle(nextCamera);
+
+            if obstacleName = 'Swing Pole' then
+            begin
+              p := map_upstairs.getPlayerPos;
+              case p.x of
+                450..469: mouseBox([249, 232, 266, 238]);
+                470..475: mouseBox([278, 233, 304, 238]);
+                476..550: mouseBox([339, 232, 360, 238]);
+              end;
+            end else
+              mouseBox(nextAction);
+          end;
+          else
+          begin
+            if obstacleName = 'Swing Pole' then
+            begin
+              p := map_upstairs.getPlayerPos;
+              case p.x of
+                450..469: mouseBox([249, 232, 266, 238]);
+                470..475: mouseBox([278, 233, 304, 238]);
+                476..550: mouseBox([339, 232, 360, 238]);
+              end;
+            end else
+              mouseBox(nextAction);
+
+            minimap.setAngle(nextCamera);
+          end;
+        end;
+
+        repeat
+          wait(100 + random(100));
+          case obstacleNumber of
+            0..1: result := waitXPChange(startXP, randomRange(6000, 10000));
+            2..5: result := whereAmI = (whichObject + 1);
+          else
+            result := whereAmI <> whichObject;
+          end;
+          if conversationBox.continue(false, false, false) then
+            exit;
+          if not isLoggedIn then
+            exit;
+        until (t.getTime > randomRange(6000, 10000)) or (result);
+
+        if obstacleName = 'Swing Pole' then
+          wait(gaussRangeInt(1200, 1500));
+
+        if obstacleName = 'Down Pipe' then
+        begin
+          mainScreen.setAngle(MS_ANGLE_HIGH);
+          t.start;
+          result := false;
+          repeat
+            wait(100 + random(100));
+            result := (CountColorTolerance(459779,Minimap.GetBounds,10)<10000);
+            if not isLoggedIn then
+              exit;
+          until (t.getTime > randomRange(6000, 10000)) or (result);
+          wait(randomRange(500, 800));
+        end;
+
+        if result then
+          exit;
+      end else
+      begin
+        failsafe;
+        exit;
+      end;
+    end;
+
+    if customSearchBounds then
+      b := setbounds(searchBounds, boundSort, boundCluster) else
+      b := mainscreen.getBounds;
+
+    obstacleColor.gatherIn(tpa, b);
+
+    if cluster then
+      atpa := tpa.cluster(tpaWidth, tpaHeight) else
+      atpa := tpa.toATPA(tpaWidth, tpaHeight);
+
+    atpa.filterBetween(filterHigh, filterLow);
+
+    if sortBySize then
+      atpa.sortBySize else
+      atpa.sortFromMidPoint(sortFrom);
+
+    if debug then
+      smartImage.debugATPA(atpa);
+
+    for i := 0 to min(high(atpa), 2) do
+    begin
+      print('tpa length: ' + tostr(length(atpa[i])));
+      case objectPart of
+        'Top':
+        begin
+          b := atpa[i].getBounds;
+          b := [b.x1 + 3, b.y1, b.x2 + 4, b.y1 + 5];
+          gaussBox(p, b);
+          mouse(p);
+        end;
+
+        'Bottom':
+        begin
+          b := atpa[i].getBounds;
+          b := [b.x1 + 3, b.y2, b.x2, b.y2 + 3];
+          gaussBox(p, b);
+          mouse(p);
+        end;
+
+        'MidRight':
+        begin
+          b := atpa[i].getBounds;
+          b := [b.x2 - 15, b.y1 + 10, b.x2 - 8, b.y1 + 20];
+          gaussBox(p, b);
+          mouse(p);
+        end;
+
+        'BottomRight':
+        begin
+          b := atpa[i].getBounds;
+          b := [b.x2 - 10, b.y2 - 5, b.x2 - 3, b.y2];
+          gaussBox(p, b);
+          mouse(p);
+        end;
+        else
+        begin
+          gaussBox(p, atpa[i].getBounds);
+          mouse(p);
+        end;
+      end;
+
+      if isMouseOverText(mouseOverText) then
+      begin
+        print('found object text, clicking');
+        if didClick(true) then
+        begin
+          print('clicked successfully, waiting for xp change');
+          startXP := chatBox.getXP;
+          wait(gaussRangeInt(minWait, minWait + randomRange(100, 1000)));
+          t.start;
+
+          case gaussrangeInt(0, 10) of
+            3..6:
+            begin
+              minimap.setAngle(nextCamera);
+
+              if obstacleName = 'Swing Pole' then
+              begin
+                p := map_upstairs.getPlayerPos;
+                case p.x of
+                  450..469: mouseBox([249, 232, 266, 238]);
+                  470..475: mouseBox([278, 233, 304, 238]);
+                  476..550: mouseBox([339, 232, 360, 238]);
+                end;
+              end else
+                mouseBox(nextAction);
+            end;
+            else
+            begin
+              if obstacleName = 'Swing Pole' then
+              begin
+                p := map_upstairs.getPlayerPos;
+                case p.x of
+                  450..469: mouseBox([249, 232, 266, 238]);
+                  470..475: mouseBox([278, 233, 304, 238]);
+                  476..550: mouseBox([339, 232, 360, 238]);
+                end;
+              end else
+                mouseBox(nextAction);
+
+              minimap.setAngle(nextCamera);
+            end;
+          end;
+
+          repeat
+            wait(100 + random(100));
+            case obstacleNumber of
+              0..1: result := waitXPChange(startXP, randomRange(6000, 10000));
+              2..5: result := whereAmI = (whichObject + 1);
+            else
+              result := whereAmI <> whichObject;
+            end;
+            if conversationBox.continue(false, false, false) then
+              exit;
+            if not isLoggedIn then
+              exit;
+          until (t.getTime > randomRange(6000, 10000)) or (result);
+
+          if obstacleName = 'Swing Pole' then
+            wait(gaussRangeInt(1200, 1500));
+
+          if obstacleName = 'Down Pipe' then
+          begin
+            MainScreen.SetAngle(MS_ANGLE_HIGH);
+            t.start;
+            result := false;
+            repeat
+              wait(100 + random(100));
+              result := (CountColorTolerance(459779,Minimap.GetBounds,10)<10000);
+              if not isLoggedIn then
+                exit;
+            until (t.getTime > randomRange(6000, 10000)) or (result);
+            wait(randomRange(500, 800));
+          end;
+
+          if result then
+            exit;
+        end else
+        begin
+          failsafe;
+          exit;
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure setup;
+begin
+  clearDebug;
+
+  requirementsCheck;
+  autoUpdateMe;
+  SmartEnableDrawing := True;
+  disableSRLLog:=true;
+
+  initPlayerForm(); // initiate your settings
+  runPlayerForm();  // run the form
+
+  // use this so the script doesn't continue if the user exits out of the form
+  if (not playerForm.isScriptReady) then
+    terminatescript;
+
+  declarePlayers();
+
+  smartPlugins := ['OpenGL32.dll','d3d9.dll'];
+
+  setupSRL;
+
+  if not isLoggedIn then
+  begin
+    if not players[currentPlayer].login then
+      terminateScript;
+
+    writeln('Just loggedin, waiting a bit');
+    wait(randomRange(6000, 10000));
+  end;
+
+  if debug or DEBUG_POS then
+    disableSRLDebug := false else
+    disableSRLDebug := true;
+
+  setupObstacles;
+
+  spsAnyAngle:=True;
+  map_upstairs.setup('0_0GA2', 'Runescape_Surface\');
+  map_ground.setup('0_0GA', 'Runescape_Surface\');
+
+
+  findNormalRandoms;
+  bir:= 20;      // ***Random minutes to add/subtract from how long until we break***
+  bfr:= 30;       // ***Random minutes to add/subjtract from break duraction***
+
+  w := (players[currentPlayer].integers[0] * 60000);
+  x := (players[currentPlayer].integers[1] * 60000);
+  y := randomRange(-bIR * 60000, bIR * 60000);
+  z := randomRange(-bFR * 60000, bFR * 60000);
+
+  if conversationBox.continue(true, true) then
+    wait(randomRange(3000, 2000));
+
+  MainScreen.SetAngle(MS_ANGLE_HIGH);
+
+  startingXP := chatBox.getXP;
+  timeout.start;
+  lostTimeout.start;
+end;
+
+procedure mainloop;
+var
+  i, j: integer;
+  t: TTimeMarker;
+begin
+  if not isLoggedIn then
+  begin
+    wait(5000);
+    if not players[currentPlayer].login then
+      terminateScript;
+    mainScreen.setAngle(MS_ANGLE_HIGH);
+    timeout.start;
+  end;
+
+  if DEBUG_POS then
+  begin
+    whereAmI;
+    wait(2000);
+  end else
+    if (CountColorTolerance(1774084,Minimap.GetBounds,10)>5000) then
+    begin
+      for i := 0 to high(obstacleArray) do
+        if findObstacle(i) then
+        begin
+          timeout.start;
+          lostTimeout.start;
+          case i of
+            RUN_SIGN..SWING_POLE:
+            begin
+              t.start;
+              j := 1;
+              repeat
+                if findObstacle(i + j) then
+                begin
+                  timeout.start;
+                  lostTimeout.start;
+                  inc(j);
+                end;
+                wait(100 + random(100));
+              until (j + i = 7) or (t.getTime > 25000);
+            end;
+          end;
+          break;
+        end;
+    end else
+      if (CountColor(0,Minimap.GetBounds)>10000) then
+      begin
+        for i := CLIMB_BRANCH_1 to high(DOWN_PIPE) do
+          if findObstacle(i) then
+          begin
+            timeout.start;
+            lostTimeout.start;
+            case i of
+              RUN_SIGN..SWING_POLE:
+              begin
+                t.start;
+                j := 1;
+                repeat
+                  if findObstacle(i + j) then
+                  begin
+                    timeout.start;
+                    lostTimeout.start;
+                    inc(j);
+                  end;
+                  wait(100 + random(100));
+                until (j + i = 7) or (t.getTime > 25000);
+              end;
+            end;
+            break;
+          end;
+      end else
+        if findObstacle(whereAmI) then
+        begin
+          timeout.start;
+          lostTimeout.start;
+        end;
+
+  if timeout.getTime > 300000 then
+  begin
+    writeln('Nothing has happened for too long, shutting down!- took a screenshot, send pic to ashaman (in the logs folder)');
+    saveScreenshot(scriptPath + timeRunning() + '_' + 'AgilityFail.png');
+    terminateScript;
+  end;
+end;
+
+begin
+  setup;
+  while (players.getActive() > 0) do
+    mainloop;
+end.
