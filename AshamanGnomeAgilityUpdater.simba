@@ -1,0 +1,42 @@
+program AshamanGnomeAgilityUpdater;
+
+///////////////////////////////////////////////////////////////////////////////////////////
+//                                                                                       //
+//                                  PRESS PLAY                                           //
+//                                                                                       //
+//                                                                                       //
+///////////////////////////////////////////////////////////////////////////////////////////
+
+{*******************************************************************************
+Function AutoupdateMe;
+By: Shuttleu
+Edited By: Ashaman88
+Description: Autoupdates Script.
+*******************************************************************************}
+Procedure AutoUpdateMe;
+Var
+  Neifile: Integer;
+  OnlineVersion, NewScript, NeiFeilNennen: String;
+Begin
+  Writeln('Checking for script updates...');
+  OnlineVersion := GetPage('http://ashamangnomeagilityadvance.googlecode.com/git/Version.txt');
+  WriteLn('Autoupdating to newer version.');
+  NewScript := GetPage('http://ashamangnomeagilityadvance.googlecode.com/git/AshamanGnomeAgility.simba');
+  NeiFeilNennen := ScriptPath+ 'AshamanGnomeAgility V'+OnlineVersion+'.simba';
+  Neifile := Rewritefile(NeiFeilNennen, true);
+  Try
+    WriteFileString(Neifile, NewScript);
+  Except
+    Begin
+      WriteLn('Fatal error writing to '+NeiFeilNennen+'!!');
+      Terminatescript;
+    End;
+  End;
+  CloseFile(Neifile);
+  WriteLn('New script downloaded to '+NeiFeilNennen+'!! Please use this one!!');
+  TerminateScript;
+End;
+
+begin
+  AutoUpdateMe;
+end.

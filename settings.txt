@@ -1,0 +1,10 @@
+PlayerList.xml
+Player1
+600
+15
+96
+False
+False
+True
+False
+Maximum
