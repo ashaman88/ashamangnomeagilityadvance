@@ -878,7 +878,8 @@ begin
   setupObstacles;
 
   spsAnyAngle:=True;
-  map_upstairs.setup('0_0GA2', 'Runescape_Surface\');
+  map_upstairs.setup('0_0GA2', 'Runescape_Surface\', __DEFAULT_ACCURACY, 800,
+             __DEFAULT_MIN_MATCH_PERCENT);
   map_ground.setup('0_0GA', 'Runescape_Surface\');
 
 
