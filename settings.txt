@@ -6,5 +6,5 @@ Player1
 False
 False
 True
-False
+True
 Maximum
