@@ -8,7 +8,7 @@ const
   DEBUG_XP = false;
   DEBUG_POS = false;
   UPSTAIRS_SPS = true;
-  SCRIPT_VERSION = '1.01';
+  SCRIPT_VERSION = '1.0';
 
 
 
@@ -215,8 +215,8 @@ var
 begin
   name1 := includePath + 'SPS\img\runescape_surface\0_0GA.png';
   name2 := includePath + 'SPS\img\runescape_surface\0_0GA2.png';
-  map1 := 'https://imagizer.imageshack.us/v2/279x303q90/841/4s14.png';
-  map2 := 'https://imagizer.imageshack.us/v2/574x452q90/834/y23u.png';
+  map1 := 'http://i.imgur.com/VyHIwJw.png';
+  map2 := 'http://i.imgur.com/fdoDsXZ.png';
   if (not fileExists(name1)) then
   begin
     writeln('No file, downloading');
@@ -334,11 +334,11 @@ begin
     obstacleColor := [3231590, 7, [2, [0.08, 0.67, 0.00]]];
     cluster := false;
     tpaWidth := 3;
-    tpaHeight := 4;
+    tpaHeight := 5;
     filterHigh := 0;
     filterLow := 10;
     sortBySize := false;
-    sortFrom := [284, 141];
+    sortFrom := [284, 179];
     objectPart := '';
     mouseOverText := ['Tree', 'Climb', 'anch', 'bran'];
     nextAction := [321, 157, 324, 171];
@@ -355,14 +355,14 @@ begin
     boundSort := mainscreen.playerPoint;
     boundCluster := 10;
     searchBounds := [1518905, 5, [2, [0.40, 0.51, 0.00]]];
-    obstacleColor := [3428196, 7, [2, [0.07, 0.18, 0.00]]];
+    obstacleColor := [3231590, 7, [2, [0.08, 0.67, 0.00]]];
     cluster := false;
-    tpaWidth := 10;
-    tpaHeight := 20;
+    tpaWidth := 3;
+    tpaHeight := 5;
     filterHigh := 0;
     filterLow := 10;
     sortBySize := false;
-    sortFrom := [322, 167];
+    sortFrom := [330, 170];
     objectPart := 'BottomRight';
     mouseOverText := ['Tree', 'Climb', 'anch', 'bran'];
     nextAction := [114, 118, 118, 135];
@@ -422,7 +422,7 @@ begin
     boundSort := mainscreen.playerPoint;
     boundCluster := 10;
     searchBounds := [1518905, 5, [2, [0.40, 0.51, 0.00]]];
-    obstacleColor := [7181748, 8, [2, [0.07, 1.17, 0.00]]];
+    obstacleColor := [7181748, 8, [2, [0.08, 1.17, 0.00]]];
     cluster := true;
     tpaWidth := 1;
     tpaHeight := 1;
