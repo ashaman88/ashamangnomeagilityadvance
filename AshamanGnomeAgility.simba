@@ -10,7 +10,6 @@ const
   SCRIPT_VERSION = '1.2';
 
 
-
 type
   TObstacle = record
     obstacleName: string;
@@ -299,7 +298,7 @@ begin
     tpaWidth := 3;
     tpaHeight := 5;
     filterHigh := 0;
-    filterLow := 10;
+    filterLow := 5;
     sortBySize := false;
     sortFrom := [284, 179];
     objectPart := '';
