@@ -5,10 +5,9 @@ program AshamanGnomeAgility;
   {$I SPS/lib/SPS-RS3.Simba}
 
 const
-  DEBUG_XP = false;
   DEBUG_POS = false;
   UPSTAIRS_SPS = true;
-  SCRIPT_VERSION = '1.1';
+  SCRIPT_VERSION = '1.2';
 
 
 
@@ -535,6 +534,12 @@ begin
   if (result = -1) then
   begin
     print('WARNING DONT KNOW WHERE YOU ARE!');
+    if pointInBox(location, [370, 162, 385, 175]) then
+    begin
+      result := CLIMB_BRANCH_1;
+      print('We are at position: '+ obstacleArray[CLIMB_BRANCH_1].obstacleName);
+      lostTimeout.start;
+    end;
     if lostTimeout.getTime > 110000 then
     begin
       writeln('Something is wrong, probably with positioning system, resetting maps');
@@ -839,8 +844,7 @@ begin
   setupObstacles;
 
   spsAnyAngle:=True;
-  map_upstairs.setup('0_0GA2', 'Runescape_Surface\', __DEFAULT_ACCURACY, 1000,
-             __DEFAULT_MIN_MATCH_PERCENT);
+  map_upstairs.setup('0_0GA2', 'Runescape_Surface\');
   map_ground.setup('0_0GA', 'Runescape_Surface\');
 
 
