@@ -22,7 +22,7 @@ Begin
   OnlineVersion := GetPage('http://ashamangnomeagilityadvance.googlecode.com/git/Version.txt');
   WriteLn('Autoupdating to newer version.');
   NewScript := GetPage('http://ashamangnomeagilityadvance.googlecode.com/git/AshamanGnomeAgility.simba');
-  NeiFeilNennen := ScriptPath+ 'AshamanGnomeAgility V'+OnlineVersion+'.simba';
+  NeiFeilNennen := ScriptPath+ 'AshamanGnomeAgility v'+OnlineVersion+'.simba';
   Neifile := Rewritefile(NeiFeilNennen, true);
   Try
     WriteFileString(Neifile, NewScript);
