@@ -7,7 +7,7 @@ program AshamanGnomeAgility;
 const
   DEBUG_POS = false;
   UPSTAIRS_SPS = true;
-  SCRIPT_VERSION = '1.2';
+  SCRIPT_VERSION = '1.3';
 
 
 type
@@ -504,7 +504,7 @@ begin
     end;
 
     for i := CLIMB_BRANCH_1 to DOWN_PIPE do
-      if pointInBox(location, obstacleArray[i].obstacleCoords) then
+      if obstacleArray[i].obstacleCoords.isPointInside(location) then
       begin
         result := i;
         break;
@@ -517,14 +517,14 @@ begin
       map_ground.debugPlayerPos;
 
     for i := 0 to CLIMB_NET do
-      if pointInBox(location, obstacleArray[i].obstacleCoords) then
+      if obstacleArray[i].obstacleCoords.isPointInside(location) then
       begin
         result := i;
         break;
       end;
 
     if result = -1 then
-      if pointInBox(location, obstacleArray[TO_START].obstacleCoords) then
+      if obstacleArray[TO_START].obstacleCoords.isPointInside(location) then
         result := TO_START;
   end;
 
